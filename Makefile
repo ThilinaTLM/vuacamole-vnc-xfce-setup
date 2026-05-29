@@ -22,19 +22,19 @@ setup:
 		echo "Next: edit .env (POSTGRES_PASSWORD, GUAC_DOMAIN, ACME_EMAIL), then run 'make init-db'."; \
 	fi
 
-## up: Start Docker stack (xrdp runs as host boot services).
+## up: Start host xrdp services + Docker stack.
 .PHONY: up
 up:
-	@if ! systemctl is-active --quiet xrdp || ! systemctl is-active --quiet xrdp-sesman; then \
-		echo "WARNING: xrdp/xrdp-sesman are not active. Run: sudo systemctl enable --now xrdp xrdp-sesman"; \
-	fi
+	sudo systemctl start xrdp xrdp-sesman
 	$(COMPOSE) up -d
 	@echo "Up: https://$$(grep -E '^GUAC_DOMAIN=' .env | cut -d= -f2-)"
 
-## down: Stop Docker stack (PostgreSQL and host xrdp services left running).
+## down: Stop Docker stack, host xrdp services, and running XFCE sessions.
 .PHONY: down
 down:
 	$(COMPOSE) down
+	sudo systemctl stop xrdp xrdp-sesman
+	-sudo pkill -x xfce4-session
 
 ## restart: Restart the Docker stack only (host xrdp untouched).
 .PHONY: restart
