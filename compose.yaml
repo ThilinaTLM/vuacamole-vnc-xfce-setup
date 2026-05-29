@@ -4,7 +4,7 @@ services:
     container_name: wrd-guacd
     restart: unless-stopped
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # reach host wayvnc on :5901
+      - "host.docker.internal:host-gateway"   # reach host xrdp on :3389
 
   guacamole:
     image: guacamole/guacamole:1.6.0

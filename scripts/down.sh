@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# Tear everything down to free RAM. PostgreSQL is left running (shared with dev).
+# Tear down the Docker gateway stack. PostgreSQL and host xrdp services are left
+# running; xrdp is a small boot service and XFCE sessions are connection-driven.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-DESKTOP_SERVICE="${DESKTOP_SERVICE:-sway-headless}"
 
 echo "==> Stopping Docker stack"
 docker compose down
 
-echo "==> Stopping headless Sway desktop (systemctl --user stop ${DESKTOP_SERVICE})"
-systemctl --user stop "${DESKTOP_SERVICE}" || true
-
-echo "==> Down. PostgreSQL left running."
+echo "==> Down. PostgreSQL and xrdp/xrdp-sesman left running."

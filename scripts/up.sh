@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Start the remote desktop on demand: host Sway/wayvnc session + Docker stack.
+# Start the remote desktop gateway on demand. Host xrdp/xrdp-sesman run as
+# system boot services; XFCE sessions start when a user logs in over RDP.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DESKTOP_SERVICE="${DESKTOP_SERVICE:-sway-headless}"
-
-echo "==> Starting headless Sway desktop (systemctl --user start ${DESKTOP_SERVICE})"
-systemctl --user start "${DESKTOP_SERVICE}"
+if ! systemctl is-active --quiet xrdp || ! systemctl is-active --quiet xrdp-sesman; then
+    echo "WARNING: xrdp/xrdp-sesman are not active. Run:"
+    echo "    sudo systemctl enable --now xrdp xrdp-sesman"
+fi
 
 echo "==> Starting Docker stack (caddy + guacamole + guacd)"
 docker compose up -d

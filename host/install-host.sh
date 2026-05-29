@@ -1,149 +1,202 @@
 #!/usr/bin/env bash
-# Install repo-tracked host desktop configs (Sway + wayvnc + user systemd unit)
-# into the current user's home directory, then reload the user systemd manager.
+# Install and configure the host desktop stack for XFCE over xrdp/xorgxrdp.
 #
-# Idempotent: re-running overwrites the installed copies with the repo versions.
-# Does NOT install packages, enable linger, or start the service — those steps
-# require sudo or a deliberate action and are only printed at the end.
+# This script performs both user-level config install and the required sudo host
+# setup. Run it interactively so sudo can prompt for your password.
+#
+# Idempotent: re-running overwrites ~/.xinitrc, the XFCE xfconf appearance
+# config, refreshes xrdp settings, and removes old repo-managed
+# LXQt/Openbox/Sway/wayvnc user config artifacts.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 src="$repo_root/host"
 
-sway_dir="$HOME/.config/sway"
-wayvnc_dir="$HOME/.config/wayvnc"
-unit_dir="$HOME/.config/systemd/user"
-waybar_dir="$HOME/.config/waybar"
-foot_dir="$HOME/.config/foot"
-fuzzel_dir="$HOME/.config/fuzzel"
-wallpaper_dir="$HOME/.config/wallpapers"
-wallpaper="$wallpaper_dir/mocha.png"
+xfconf_dir="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
 gtk3_dir="$HOME/.config/gtk-3.0"
 gtk4_dir="$HOME/.config/gtk-4.0"
-qt5ct_dir="$HOME/.config/qt5ct"
-qt6ct_dir="$HOME/.config/qt6ct"
-swaync_dir="$HOME/.config/swaync"
-nwgdrawer_dir="$HOME/.config/nwg-drawer"
-envd_dir="$HOME/.config/environment.d"
+unit_dir="$HOME/.config/systemd/user"
 
-echo "==> Creating config directories"
-mkdir -p "$sway_dir" "$wayvnc_dir" "$unit_dir" \
-    "$waybar_dir" "$foot_dir" "$fuzzel_dir" "$wallpaper_dir" \
-    "$gtk3_dir" "$gtk4_dir" "$qt5ct_dir/colors" "$qt6ct_dir/colors" \
-    "$swaync_dir" "$nwgdrawer_dir" "$envd_dir"
+packages=(
+    xrdp xorgxrdp
+    xfce4-session xfwm4 xfce4-panel xfdesktop xfce4-settings xfconf
+    thunar xfce4-terminal xfce4-appfinder xfce4-notifyd garcon
+    breeze-icons noto-fonts
+)
 
-# Detect the Docker bridge gateway so wayvnc binds to the host-internal address
-# that guacd reaches via host.docker.internal (host-gateway).
-gateway="$(ip -4 addr show docker0 2>/dev/null | grep -oP 'inet \K[\d.]+' || true)"
+old_package_candidates=(
+    lxqt-session lxqt-panel lxqt-config lxqt-globalkeys lxqt-menu-data
+    lxqt-notificationd lxqt-policykit lxqt-qtplugin lxqt-runner lxqt-themes
+    pcmanfm-qt qterminal openbox obconf-qt
+    sway swaybg waybar wayvnc foot fuzzel xorg-xwayland seatd
+    ttf-iosevkaterm-nerd papirus-icon-theme swaync nwg-drawer
+    qt5ct qt6ct xdg-desktop-portal xdg-desktop-portal-gtk
+    autotiling swayr wl-clipboard cliphist grim slurp swappy wlogout neatvnc
+    tigervnc
+)
+
+confirm_default_yes() {
+    local prompt="$1"
+    local reply
+    read -r -p "$prompt [Y/n] " reply
+    case "${reply,,}" in
+        n|no) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+confirm_default_no() {
+    local prompt="$1"
+    local reply
+    read -r -p "$prompt [y/N] " reply
+    case "${reply,,}" in
+        y|yes) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Detect Docker bridge gateway for the xrdp bind address.
+gateway="$(ip -4 addr show docker0 2>/dev/null | awk '/inet / {sub(/\/.*/, "", $2); print $2; exit}' || true)"
 if [ -z "$gateway" ]; then
     gateway="172.17.0.1"
-    echo "==> docker0 not found; defaulting wayvnc bind to ${gateway}"
+    echo "==> docker0 not found; defaulting xrdp bind to ${gateway}"
     echo "    Verify later with: ip -4 addr show docker0"
 else
     echo "==> Detected Docker bridge gateway: ${gateway}"
 fi
 
-echo "==> Installing wallpaper"
-cp "$src/wallpapers/mocha.png" "$wallpaper"
+echo "==> Removing old repo-managed LXQt/Openbox/PCManFM user configs"
+rm -rf \
+    "$HOME/.config/lxqt" \
+    "$HOME/.config/openbox" \
+    "$HOME/.config/pcmanfm-qt"
 
-echo "==> Installing Sway config (binding wayvnc to ${gateway}:5901)"
-# Substitute the wayvnc bind address and the absolute wallpaper path. Escape
-# the wallpaper path for sed since it contains '/'.
-wallpaper_esc="${wallpaper//\//\\/}"
-sed -e "s/@DOCKER_BRIDGE_GATEWAY@/${gateway}/" \
-    -e "s/@WALLPAPER@/${wallpaper_esc}/" \
-    "$src/sway/config" > "$sway_dir/config"
+echo "==> Removing old repo-managed Sway/wayvnc/Wayland user configs"
+systemctl --user disable --now sway-headless.service 2>/dev/null || true
+rm -f "$unit_dir/sway-headless.service"
+systemctl --user daemon-reload 2>/dev/null || true
+rm -rf \
+    "$HOME/.config/sway" \
+    "$HOME/.config/wayvnc" \
+    "$HOME/.config/waybar" \
+    "$HOME/.config/foot" \
+    "$HOME/.config/fuzzel" \
+    "$HOME/.config/swaync" \
+    "$HOME/.config/nwg-drawer" \
+    "$HOME/.config/swayr" \
+    "$HOME/.config/wlogout"
+rm -f "$HOME/.config/wallpapers/mocha.png"
+rm -f "$HOME/.config/environment.d/desktop.conf"
 
-echo "==> Installing wayvnc config"
-cp "$src/wayvnc/config" "$wayvnc_dir/config"
+echo "==> Removing old repo-managed Qt theme files"
+rm -f \
+    "$HOME/.config/qt5ct/qt5ct.conf" \
+    "$HOME/.config/qt5ct/colors/Catppuccin-Mocha.conf" \
+    "$HOME/.config/qt6ct/qt6ct.conf" \
+    "$HOME/.config/qt6ct/colors/Catppuccin-Mocha.conf"
 
-echo "==> Installing Waybar config + style"
-cp "$src/waybar/config.jsonc" "$waybar_dir/config.jsonc"
-cp "$src/waybar/style.css" "$waybar_dir/style.css"
+echo "==> Removing old TigerVNC user configs from previous remote-desktop setups"
+rm -rf "$HOME/.vnc"
 
-echo "==> Installing foot + fuzzel themes"
-cp "$src/foot/foot.ini" "$foot_dir/foot.ini"
-cp "$src/fuzzel/fuzzel.ini" "$fuzzel_dir/fuzzel.ini"
+# Start from a clean XFCE config so stale settings from earlier setups do not
+# linger, then install the repo-tracked appearance.
+echo "==> Resetting and installing XFCE config"
+rm -rf "$HOME/.config/xfce4"
+mkdir -p "$xfconf_dir" "$gtk3_dir" "$gtk4_dir"
 
-echo "==> Installing GTK 3/4 theming (dark Adwaita + Catppuccin accents, no animations)"
-cp "$src/gtk/gtk-3.0/settings.ini" "$gtk3_dir/settings.ini"
-cp "$src/gtk/gtk-3.0/gtk.css"     "$gtk3_dir/gtk.css"
-cp "$src/gtk/gtk-4.0/settings.ini" "$gtk4_dir/settings.ini"
-cp "$src/gtk/gtk-4.0/gtk.css"     "$gtk4_dir/gtk.css"
+echo "==> Installing XFCE xrdp session launcher"
+cp "$src/xfce/xinitrc" "$HOME/.xinitrc"
+chmod +x "$HOME/.xinitrc"
 
-echo "==> Installing Qt 5/6 theming (qt5ct/qt6ct Fusion + Catppuccin palette)"
-cp "$src/qt/qt5ct/colors/Catppuccin-Mocha.conf" "$qt5ct_dir/colors/Catppuccin-Mocha.conf"
-cp "$src/qt/qt6ct/colors/Catppuccin-Mocha.conf" "$qt6ct_dir/colors/Catppuccin-Mocha.conf"
-qt5ct_colors_esc="${qt5ct_dir//\//\\/}\\/colors\\/Catppuccin-Mocha.conf"
-qt6ct_colors_esc="${qt6ct_dir//\//\\/}\\/colors\\/Catppuccin-Mocha.conf"
-sed -e "s/@QT5CT_COLORS@/${qt5ct_colors_esc}/" "$src/qt/qt5ct/qt5ct.conf" > "$qt5ct_dir/qt5ct.conf"
-sed -e "s/@QT6CT_COLORS@/${qt6ct_colors_esc}/" "$src/qt/qt6ct/qt6ct.conf" > "$qt6ct_dir/qt6ct.conf"
+echo "==> Installing XFCE appearance, panel, session, and keyboard config"
+cp "$src/xfce/xfconf/xfce-perchannel-xml/"*.xml "$xfconf_dir/"
 
-echo "==> Installing swaync notification center config + style"
-cp "$src/swaync/config.json" "$swaync_dir/config.json"
-cp "$src/swaync/style.css"   "$swaync_dir/style.css"
+# Minimal GTK dark preference for GTK dialogs/apps.
+echo "==> Installing GTK dark-mode preference"
+cp "$src/gtk-3.0/settings.ini" "$gtk3_dir/settings.ini"
+cp "$src/gtk-4.0/settings.ini" "$gtk4_dir/settings.ini"
 
-echo "==> Installing nwg-drawer (start-menu grid) style"
-cp "$src/nwg-drawer/drawer.css" "$nwgdrawer_dir/drawer.css"
+echo "==> Requesting sudo credentials for host package/service setup"
+sudo -v
 
-echo "==> Installing session environment + gsettings helper"
-cp "$src/environment.d/desktop.conf" "$envd_dir/desktop.conf"
-cp "$src/sway/apply-gsettings.sh" "$sway_dir/apply-gsettings.sh"
-chmod +x "$sway_dir/apply-gsettings.sh"
+echo "==> Installing lightweight XFCE + xrdp/X11 host stack"
+sudo pacman -S --needed "${packages[@]}"
 
-echo "==> Installing user systemd unit"
-cp "$src/systemd/sway-headless.service" "$unit_dir/sway-headless.service"
+echo "==> Configuring xrdp to bind only to ${gateway}:3389"
+ts="$(date +%Y%m%d%H%M%S)"
+sudo cp /etc/xrdp/xrdp.ini "/etc/xrdp/xrdp.ini.bak.${ts}"
+sudo sed -i -E "0,/^port=.*/s|^port=.*|port=tcp://${gateway}:3389|" /etc/xrdp/xrdp.ini
 
-echo "==> Reloading user systemd manager"
-if systemctl --user daemon-reload 2>/dev/null; then
-    echo "    daemon-reload OK"
+if ! sudo grep -q "^port=tcp://${gateway}:3389$" /etc/xrdp/xrdp.ini; then
+    echo "ERROR: Failed to set xrdp bind address in /etc/xrdp/xrdp.ini" >&2
+    exit 1
+fi
+
+echo "==> Configuring xrdp-sesman Xorg path for Arch"
+sudo cp /etc/xrdp/sesman.ini "/etc/xrdp/sesman.ini.bak.${ts}"
+sudo awk '
+  BEGIN { in_xorg=0; replaced=0 }
+  /^\[Xorg\]/ { in_xorg=1; replaced=0; print; next }
+  /^\[/ && $0 !~ /^\[Xorg\]/ { in_xorg=0; print; next }
+  in_xorg && !replaced && /^param=/ { print "param=/usr/lib/Xorg"; replaced=1; next }
+  { print }
+' /etc/xrdp/sesman.ini | sudo tee /etc/xrdp/sesman.ini.tmp >/dev/null
+sudo mv /etc/xrdp/sesman.ini.tmp /etc/xrdp/sesman.ini
+
+echo "==> Enabling and starting xrdp services"
+sudo systemctl enable --now xrdp xrdp-sesman
+
+if confirm_default_yes "Remove old LXQt/Openbox/Sway/Wayland/TigerVNC packages now?"; then
+    echo "==> Removing old desktop packages if installed"
+    remove_pkgs=()
+    for p in "${old_package_candidates[@]}"; do
+        pacman -Q "$p" >/dev/null 2>&1 && remove_pkgs+=("$p")
+    done
+
+    if ((${#remove_pkgs[@]})); then
+        printf '    %s\n' "${remove_pkgs[@]}"
+        sudo pacman -Rns -- "${remove_pkgs[@]}"
+    else
+        echo "    No old LXQt/Sway/Wayland/TigerVNC packages found."
+    fi
+
+    echo "==> Removing old TigerVNC system service/config if present"
+    sudo systemctl disable --now 'vncserver@:1.service' 2>/dev/null || true
+    sudo rm -f /etc/tigervnc/vncserver.users
 else
-    echo "    WARNING: 'systemctl --user daemon-reload' failed."
-    echo "    You likely need a user systemd manager (see linger note below)."
+    echo "==> Skipped old package removal. Re-run this script later or see docs/xfce-xrdp.md."
+fi
+
+if confirm_default_no "Remove all pacman orphan packages now? This may include unrelated packages"; then
+    mapfile -t orphans < <(pacman -Qtdq 2>/dev/null || true)
+    if ((${#orphans[@]})); then
+        printf '    %s\n' "${orphans[@]}"
+        sudo pacman -Rns -- "${orphans[@]}"
+    else
+        echo "    No orphan packages found."
+    fi
 fi
 
 cat <<EOF
 
-==> Installed:
-    $sway_dir/config
-    $wayvnc_dir/config
-    $unit_dir/sway-headless.service
-    $waybar_dir/config.jsonc
-    $waybar_dir/style.css
-    $foot_dir/foot.ini
-    $fuzzel_dir/fuzzel.ini
-    $gtk3_dir/{settings.ini,gtk.css}
-    $gtk4_dir/{settings.ini,gtk.css}
-    $qt5ct_dir/{qt5ct.conf,colors/Catppuccin-Mocha.conf}
-    $qt6ct_dir/{qt6ct.conf,colors/Catppuccin-Mocha.conf}
-    $swaync_dir/{config.json,style.css}
-    $nwgdrawer_dir/drawer.css
-    $envd_dir/desktop.conf
-    $sway_dir/apply-gsettings.sh
-    $wallpaper
+==> Installed and configured:
+    $HOME/.xinitrc
+    $xfconf_dir/xsettings.xml
+    $xfconf_dir/xfwm4.xml
+    $xfconf_dir/xfce4-panel.xml
+    $xfconf_dir/xfce4-desktop.xml
+    $xfconf_dir/xfce4-session.xml
+    $xfconf_dir/keyboard-shortcuts.xml
+    $gtk3_dir/settings.ini
+    $gtk4_dir/settings.ini
+    /etc/xrdp/xrdp.ini      (backup: /etc/xrdp/xrdp.ini.bak.${ts})
+    /etc/xrdp/sesman.ini    (backup: /etc/xrdp/sesman.ini.bak.${ts})
 
-==> Remaining one-time host steps (run manually; they need sudo):
+==> Verify xrdp is active and bound to the Docker bridge IP, not 0.0.0.0:
+    systemctl status xrdp xrdp-sesman --no-pager
+    ss -ltnp | grep ':3389'
 
-    # ttf-iosevkaterm-nerd: bar/terminal glyphs; papirus-icon-theme: app icons;
-    # swaync: notifications; nwg-drawer: start-menu grid; qt5ct/qt6ct + Fusion:
-    # Qt theming; gnome-themes-extra: Adwaita-dark; xdg-desktop-portal[-gtk]:
-    # surfaces dark + reduced-motion to Firefox/Chromium.
-    sudo pacman -S --needed sway swaybg waybar wayvnc foot fuzzel \
-        xorg-xwayland seatd ttf-iosevkaterm-nerd papirus-icon-theme \
-        swaync nwg-drawer qt5ct qt6ct gnome-themes-extra \
-        xdg-desktop-portal xdg-desktop-portal-gtk
-
-    # Allow the user systemd manager to run without an interactive login
-    sudo loginctl enable-linger "\$USER"
-
-    # Optional/fallback only — if Sway complains about seat/session access:
-    # sudo systemctl enable --now seatd
-    # sudo usermod -aG seat "\$USER"
-
-==> Then start the desktop on demand:
-
-    systemctl --user start sway-headless
-    systemctl --user status sway-headless
-    ss -ltnp | grep 5901    # expect wayvnc on ${gateway}:5901
+==> Then start the web gateway:
+    make up
 
 EOF

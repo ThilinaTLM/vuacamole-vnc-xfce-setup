@@ -3,30 +3,28 @@
 A self-hosted, browser-accessible remote desktop for the Arch Linux dev server, reachable at
 `https://desk.tlmtech.dev`.
 
-- **Desktop**: Sway + wayvnc on the host (headless, started on demand).
+- **Desktop**: XFCE (xfwm4) on X11, served by host `xrdp`/`xorgxrdp`.
 - **Gateway**: Apache Guacamole (HTML5 client, auth, optional TOTP/2FA) + guacd, in Docker.
 - **Proxy**: Caddy in Docker — automatic HTTPS for `desk.tlmtech.dev`.
 - **Database**: your existing system-level PostgreSQL (shared with dev work).
 
-Everything is **on-demand**: nothing starts at boot, so idle RAM cost is near zero beyond
-PostgreSQL and the user systemd manager.
+The public boundary is still HTTPS/Caddy/Guacamole. Host RDP binds only to the Docker bridge
+address, so it is reachable by `guacd` but not exposed publicly.
 
-> Host desktop details (packages, linger, config install, troubleshooting) live in
-> [`docs/sway-wayvnc.md`](./docs/sway-wayvnc.md).
-
-> A general PostgreSQL setup guide for this server is in [`docs/postgresql-arch.md`](./docs/postgresql-arch.md).
+Host desktop details live in [`docs/xfce-xrdp.md`](./docs/xfce-xrdp.md). PostgreSQL setup lives in
+[`docs/postgresql-arch.md`](./docs/postgresql-arch.md).
 
 ## Architecture
 
 ```text
 https://desk.tlmtech.dev  ──►  Caddy (Docker, 80/443)
                                   └─► Guacamole (Docker) ─► guacd (Docker)
-                                                              └─► VNC ─► wayvnc + Sway headless (host :5901)
+                                                              └─► RDP ─► xrdp/xorgxrdp ─► Xorg ─► XFCE
                                   Guacamole ─► PostgreSQL (host, system service)
 ```
 
-Only ports **80/443** (and **22** for SSH) are exposed publicly. VNC/guacd/Guacamole/Postgres stay
-on loopback or the Docker bridge.
+Only ports **80/443** (and **22** for SSH) should be exposed publicly. RDP/guacd/Guacamole/Postgres
+stay on the Docker bridge, loopback, or private host interfaces.
 
 ---
 
@@ -39,52 +37,27 @@ Docker Engine + the Compose v2 plugin:
 ```bash
 sudo pacman -S --needed docker docker-compose
 sudo systemctl enable --now docker
-docker compose version   # verify the plugin is present
+docker compose version
 ```
 
-### 1. Host desktop (Sway + wayvnc)
+### 1. Host desktop (XFCE + xrdp + X11)
 
-Install packages and enable linger (so the user systemd manager runs without an
-interactive login):
-
-```bash
-sudo pacman -S --needed sway swaybg waybar wayvnc foot fuzzel \
-    xorg-xwayland seatd ttf-iosevkaterm-nerd papirus-icon-theme \
-    swaync nwg-drawer qt5ct qt6ct gnome-themes-extra \
-    xdg-desktop-portal xdg-desktop-portal-gtk
-sudo loginctl enable-linger "$USER"
-```
-
-The desktop ships a flat **Catppuccin Mocha** theme: a compact KDE Plasma-style
-**bottom panel** (mauve **start button** → `nwg-drawer` app-grid launcher,
-workspace pager, then system tray + notification bell + clock on the right — no
-task list, since it's a tiling WM), mauve accent borders, a layered-mountains
-wallpaper, matching **GTK** (Adwaita-dark + Catppuccin) and **Qt** (qt5ct/qt6ct
-Fusion) app theming, and a styled **swaync** notification center. Everything is
-**flat and instant**: animations are disabled at the toolkit level, which also
-makes Firefox/Chromium report `prefers-reduced-motion: reduce` and go dark. It
-deliberately avoids SwayFX/blur/shadows/animations — the session is
-software-rendered and streamed over VNC, where animated pixels cost CPU and
-bandwidth. See
-[`docs/sway-wayvnc.md`](./docs/sway-wayvnc.md#appearance--theming-catppuccin-mocha).
-
-Install the repo-tracked host configs (Sway config, wayvnc config, user unit). The
-installer detects the Docker bridge gateway and binds wayvnc to it (e.g. `172.17.0.1:5901`),
-then runs `systemctl --user daemon-reload`:
+Run the host installer interactively. It installs repo-tracked XFCE user configs, prompts for sudo, installs the lightweight XFCE/xrdp package set, binds xrdp to the Docker bridge, enables `xrdp`/`xrdp-sesman`, and offers to remove old LXQt/Sway/TigerVNC packages.
 
 ```bash
 ./host/install-host.sh
 ```
 
-There is **no** `vncpasswd` and **no** `/etc/tigervnc/vncserver.users` — wayvnc runs with
-auth disabled and is reachable only from the Docker bridge; Guacamole login is the public
-boundary. See [`docs/sway-wayvnc.md`](./docs/sway-wayvnc.md) for the full rationale.
+Verify xrdp is bound to the Docker bridge only:
 
-> The `sway-headless` user unit is **not** enabled (no autostart). `make up` starts it on demand.
+```bash
+systemctl status xrdp xrdp-sesman --no-pager
+ss -ltnp | grep ':3389'     # expect <docker0-gateway>:3389, not 0.0.0.0:3389
+```
 
 ### 2. PostgreSQL database + role
 
-If PostgreSQL isn't set up yet, follow [`docs/postgresql-arch.md`](./docs/postgresql-arch.md) first.
+If PostgreSQL is not set up yet, follow [`docs/postgresql-arch.md`](./docs/postgresql-arch.md) first.
 Then create the Guacamole database/role and allow the Docker bridge to connect:
 
 ```bash
@@ -94,7 +67,7 @@ CREATE DATABASE guacamole_db OWNER guacamole_user;
 SQL
 ```
 
-Allow the Docker bridge subnet (one-time host edit):
+Allow the Docker bridge subnet:
 
 ```text
 # /var/lib/postgres/data/postgresql.conf
@@ -111,14 +84,40 @@ sudo systemctl reload postgresql
 ### 3. Project configuration
 
 ```bash
-make setup      # creates .env from .env.example
+make setup
 # edit .env: POSTGRES_PASSWORD (match the role above), GUAC_DOMAIN, ACME_EMAIL
 ```
 
 ### 4. Load the Guacamole schema (once)
 
 ```bash
-make init-db        # generates sql/initdb.sql and loads it into guacamole_db
+make init-db
+```
+
+### 5. Clean old host desktop packages/configs
+
+The installer offers to remove obsolete packages. If you skipped that prompt, run:
+
+```bash
+candidates=(
+  lxqt-session lxqt-panel lxqt-config lxqt-globalkeys lxqt-menu-data
+  lxqt-notificationd lxqt-policykit lxqt-qtplugin lxqt-runner lxqt-themes
+  pcmanfm-qt qterminal openbox obconf-qt
+  sway swaybg waybar wayvnc foot fuzzel xorg-xwayland seatd
+  ttf-iosevkaterm-nerd papirus-icon-theme swaync nwg-drawer
+  qt5ct qt6ct xdg-desktop-portal xdg-desktop-portal-gtk
+  autotiling swayr wl-clipboard cliphist grim slurp swappy wlogout neatvnc
+  tigervnc
+)
+remove_pkgs=()
+for p in "${candidates[@]}"; do
+  pacman -Q "$p" >/dev/null 2>&1 && remove_pkgs+=("$p")
+done
+if ((${#remove_pkgs[@]})); then
+  sudo pacman -Rns -- "${remove_pkgs[@]}"
+fi
+sudo systemctl disable --now 'vncserver@:1.service' 2>/dev/null || true
+sudo rm -f /etc/tigervnc/vncserver.users
 ```
 
 ---
@@ -126,12 +125,13 @@ make init-db        # generates sql/initdb.sql and loads it into guacamole_db
 ## Daily use
 
 ```bash
-make up        # start desktop + stack  → https://desk.tlmtech.dev
-make down      # stop everything (frees RAM; PostgreSQL stays up)
-make ps        # status
-make logs      # follow all logs
-make restart   # restart the Docker stack only
-make           # list all targets
+make up           # start Docker stack → https://desk.tlmtech.dev
+make down         # stop Docker stack; PostgreSQL and xrdp stay up
+make host-status  # xrdp/xrdp-sesman status + RDP listener
+make ps           # Docker stack status
+make logs         # follow all Docker logs
+make restart      # restart Docker stack only
+make              # list all targets
 ```
 
 ### First login
@@ -140,15 +140,18 @@ make           # list all targets
 2. Log in with `guacadmin` / `guacadmin` and **change the password immediately**.
 3. Create a connection:
 
-   | Field    | Value                  |
-   | -------- | ---------------------- |
-   | Name     | `Arch Sway`            |
-   | Protocol | `VNC`                  |
+   | Field | Value |
+   | --- | --- |
+   | Name | `Arch XFCE` |
+   | Protocol | `RDP` |
    | Hostname | `host.docker.internal` |
-   | Port     | `5901`                 |
-   | Password | **blank / cleared**    |
+   | Port | `3389` |
+   | Security mode | `Any` or `TLS` |
+   | Ignore server certificate | enabled |
 
-### Enable TOTP/2FA (recommended before serious use)
+Use your Linux account credentials for the RDP login, or configure Guacamole to prompt/store them.
+
+### Enable TOTP/2FA
 
 Mount `guacamole-auth-totp-1.6.0.jar` into the Guacamole extensions directory and restart the
 `guacamole` service; each user enrolls on next login. See
@@ -160,43 +163,26 @@ Mount `guacamole-auth-totp-1.6.0.jar` into the Guacamole extensions directory an
 
 ```text
 .
-├── README.md            # this file
+├── README.md
 ├── compose.yaml         # guacd + guacamole + caddy
 ├── Makefile             # make up / down / init-db / logs ...
 ├── .env.example         # copy to .env
 ├── caddy/Caddyfile      # automatic HTTPS → guacamole
 ├── sql/initdb.sql       # generated schema (gitignored)
-├── scripts/             # up.sh, down.sh, init-db.sh (used by Makefile)
-├── host/                # host desktop configs (installed by install-host.sh)
-│   ├── sway/config
-│   ├── wayvnc/config
-│   ├── sway/apply-gsettings.sh # dark + reduced-motion via gsettings
-│   ├── waybar/          # config.jsonc + style.css (compact KDE-style panel)
-│   ├── foot/foot.ini    # terminal theme
-│   ├── fuzzel/fuzzel.ini # quick-run launcher theme
-│   ├── nwg-drawer/drawer.css   # start-menu app-grid theme
-│   ├── swaync/          # config.json + style.css (notification center)
-│   ├── gtk/             # gtk-3.0 + gtk-4.0 settings.ini + gtk.css
-│   ├── qt/              # qt5ct + qt6ct Fusion + Catppuccin palette
-│   ├── environment.d/desktop.conf # session env (QT theme, cursor, dark)
-│   ├── wallpapers/      # mocha.png + generate.py
-│   ├── systemd/sway-headless.service
-│   ├── install-host.sh
-│   └── patches/         # patched neatvnc for browser-responsive resize
+├── scripts/             # up.sh, down.sh, init-db.sh
+├── host/
+│   ├── install-host.sh  # installs/configures XFCE + xrdp host setup
+│   ├── xfce/            # XFCE xinitrc + xfconf (theme, panel, session, hotkeys)
+│   ├── gtk-3.0/         # GTK dark preference
+│   └── gtk-4.0/         # GTK dark preference
 └── docs/
-    ├── sway-wayvnc.md       # host desktop (Sway + wayvnc) setup & troubleshooting
-    └── postgresql-arch.md   # general PostgreSQL setup for this server
+    ├── xfce-xrdp.md
+    └── postgresql-arch.md
 ```
 
 ## Troubleshooting
 
-- **Gray/blank desktop / Sway won't start / wayvnc not listening** — see the dedicated
-  troubleshooting section in [`docs/sway-wayvnc.md`](./docs/sway-wayvnc.md). Quick checks:
-  `systemctl --user status sway-headless`, `journalctl --user -u sway-headless -b --no-pager`,
-  and `ss -ltnp | grep 5901`.
-- **Guacamole can't reach the DB** — confirm `pg_hba.conf` allows `172.16.0.0/12` and
-  `listen_addresses` includes the docker0 gateway (`ip addr show docker0`), then
-  `sudo systemctl reload postgresql`.
-- **Cert not issued** — DNS for `desk.tlmtech.dev` must resolve to this server and ports 80/443 must
-  be reachable; check `make logs` for Caddy ACME errors.
-- **`docker compose` not found** — install the plugin: `sudo pacman -S docker-compose`.
+- **xrdp not listening** — run `make host-status` and check `journalctl -u xrdp -u xrdp-sesman -b --no-pager`.
+- **Blank/blue session after login** — confirm `~/.xinitrc` exists, `startxfce4` is installed, and `/etc/xrdp/sesman.ini` has `[Xorg] param=/usr/lib/Xorg`.
+- **Guacamole cannot reach RDP** — confirm `compose.yaml` has `host.docker.internal:host-gateway` and `ss -ltnp | grep ':3389'` shows the Docker bridge address.
+- **RDP exposed publicly** — fix `/etc/xrdp/xrdp.ini`; it should bind to `tcp://<docker0-gateway>:3389`, not `0.0.0.0:3389`.

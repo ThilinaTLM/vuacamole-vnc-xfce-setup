@@ -1,0 +1,14 @@
+#!/bin/sh
+# XFCE session for xrdp/xorgxrdp.
+# Installed to ~/.xinitrc by host/install-host.sh.
+
+export XDG_CURRENT_DESKTOP=XFCE
+export XDG_SESSION_DESKTOP=xfce
+export DESKTOP_SESSION=xfce
+export GTK_THEME=Adwaita:dark
+unset WAYLAND_DISPLAY
+unset MOZ_ENABLE_WAYLAND
+
+# startxfce4 sets up its own D-Bus session, so do not wrap it in
+# dbus-run-session (that would launch a second, conflicting bus).
+exec startxfce4

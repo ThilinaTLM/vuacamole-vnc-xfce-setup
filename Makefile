@@ -1,9 +1,8 @@
 # Web Remote Desktop — convenience commands.
 # Run `make` or `make help` to list targets.
 
-SHELL           := /bin/bash
-DESKTOP_SERVICE ?= sway-headless
-COMPOSE         := docker compose
+SHELL   := /bin/bash
+COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
 
@@ -23,20 +22,21 @@ setup:
 		echo "Next: edit .env (POSTGRES_PASSWORD, GUAC_DOMAIN, ACME_EMAIL), then run 'make init-db'."; \
 	fi
 
-## up: Start Sway desktop + Docker stack (caddy/guacamole/guacd).
+## up: Start Docker stack (xrdp runs as host boot services).
 .PHONY: up
 up:
-	systemctl --user start "$(DESKTOP_SERVICE)"
+	@if ! systemctl is-active --quiet xrdp || ! systemctl is-active --quiet xrdp-sesman; then \
+		echo "WARNING: xrdp/xrdp-sesman are not active. Run: sudo systemctl enable --now xrdp xrdp-sesman"; \
+	fi
 	$(COMPOSE) up -d
 	@echo "Up: https://$$(grep -E '^GUAC_DOMAIN=' .env | cut -d= -f2-)"
 
-## down: Stop Docker stack + Sway desktop (PostgreSQL left running).
+## down: Stop Docker stack (PostgreSQL and host xrdp services left running).
 .PHONY: down
 down:
 	$(COMPOSE) down
-	-systemctl --user stop "$(DESKTOP_SERVICE)"
 
-## restart: Restart the Docker stack only (desktop untouched).
+## restart: Restart the Docker stack only (host xrdp untouched).
 .PHONY: restart
 restart:
 	$(COMPOSE) restart
@@ -71,17 +71,8 @@ config:
 pull:
 	$(COMPOSE) pull
 
-## desk-up: Start only the headless Sway desktop.
-.PHONY: desk-up
-desk-up:
-	systemctl --user start "$(DESKTOP_SERVICE)"
-
-## desk-down: Stop only the headless Sway desktop.
-.PHONY: desk-down
-desk-down:
-	-systemctl --user stop "$(DESKTOP_SERVICE)"
-
-# Backwards-compatible aliases for the old TigerVNC target names.
-.PHONY: vnc-up vnc-down
-vnc-up: desk-up
-vnc-down: desk-down
+## host-status: Show xrdp/xrdp-sesman status and RDP listener.
+.PHONY: host-status
+host-status:
+	-systemctl status xrdp xrdp-sesman --no-pager
+	-ss -ltnp | grep ':3389'
