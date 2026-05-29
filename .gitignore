@@ -1,0 +1,20 @@
+# secrets / local config
+.env
+.env.*
+!.env.example
+
+# generated schema
+sql/initdb.sql
+
+# persisted runtime data (certs, caddy state, db dumps)
+data/caddy/*
+data/caddy-config/*
+!data/caddy/.gitkeep
+!data/caddy-config/.gitkeep
+
+# editor / OS cruft
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/

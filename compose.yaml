@@ -1,0 +1,44 @@
+services:
+  guacd:
+    image: guacamole/guacd:1.6.0
+    container_name: wrd-guacd
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach host wayvnc on :5901
+
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    container_name: wrd-guacamole
+    restart: unless-stopped
+    depends_on:
+      - guacd
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_HOSTNAME: host.docker.internal     # system PostgreSQL on the host
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USERNAME: guacamole_user
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      WEBAPP_CONTEXT: ROOT
+      REMOTE_IP_VALVE_ENABLED: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: wrd-caddy
+    restart: unless-stopped
+    depends_on:
+      - guacamole
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      GUAC_DOMAIN: ${GUAC_DOMAIN:?set GUAC_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./data/caddy-config:/config

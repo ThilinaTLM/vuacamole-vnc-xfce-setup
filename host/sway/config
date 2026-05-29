@@ -1,0 +1,73 @@
+# Minimal headless Sway config for the Guacamole/wayvnc remote desktop.
+# Installed to ~/.config/sway/config by host/install-host.sh.
+#
+# Single source of truth for the wayvnc bind address/port is the `exec wayvnc`
+# line at the bottom of this file. Do NOT also set address/port in
+# ~/.config/wayvnc/config or precedence becomes ambiguous.
+
+### Output -------------------------------------------------------------------
+# The wlroots headless backend creates HEADLESS-1 (WLR_HEADLESS_OUTPUTS=1).
+output HEADLESS-1 resolution 1920x1080 position 0 0
+# Solid background so an empty desktop isn't pure black (needs the swaybg package).
+output HEADLESS-1 bg #1e1e2e solid_color
+
+### XWayland (legacy X11 apps) ------------------------------------------------
+xwayland enable
+
+### Modifier ------------------------------------------------------------------
+# Use Alt as the Sway modifier so the more common Super/Win combos pass
+# through to applications in the remote session.
+set $mod Mod1
+
+### Programs ------------------------------------------------------------------
+set $term foot
+set $menu fuzzel
+
+### Key bindings --------------------------------------------------------------
+bindsym $mod+Return exec $term
+bindsym $mod+d exec $menu
+bindsym $mod+q kill
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+e exec swaymsg exit
+
+# Focus
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# Move
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# Layout
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
+
+# Workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+
+### Passthrough mode ----------------------------------------------------------
+# Toggle a mode where Sway ignores nearly all bindings, so a browser/Guacamole
+# user can send mod-key combinations straight into the remote applications.
+# Enter with $mod+Shift+p, leave with the same combo or Escape.
+mode "passthrough" {
+    bindsym $mod+Shift+p mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+Shift+p mode "passthrough"
+
+### Remote access -------------------------------------------------------------
+# Bind address/port live here only (single source of truth). The installer
+# replaces @DOCKER_BRIDGE_GATEWAY@ with the detected docker0 gateway IP.
+exec wayvnc @DOCKER_BRIDGE_GATEWAY@ 5901

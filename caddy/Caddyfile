@@ -1,0 +1,8 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$GUAC_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy guacamole:8080
+}

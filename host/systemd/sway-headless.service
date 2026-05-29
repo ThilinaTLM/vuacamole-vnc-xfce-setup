@@ -1,0 +1,20 @@
+[Unit]
+Description=Headless Sway desktop for Guacamole/wayvnc
+After=default.target
+
+[Service]
+Type=simple
+# Force the wlroots headless, software-rendered backend so the compositor runs
+# without a GPU/DRM/seat and with no physical input devices.
+Environment=WLR_BACKENDS=headless
+Environment=WLR_RENDERER=pixman
+Environment=WLR_LIBINPUT_NO_DEVICES=1
+Environment=WLR_HEADLESS_OUTPUTS=1
+ExecStart=/usr/bin/sway --config %h/.config/sway/config
+Restart=on-failure
+RestartSec=2
+# Stop Sway and its child wayvnc together.
+KillMode=control-group
+
+[Install]
+WantedBy=default.target
