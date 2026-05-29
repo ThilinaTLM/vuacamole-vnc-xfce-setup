@@ -155,7 +155,8 @@ Mount `guacamole-auth-totp-1.6.0.jar` into the Guacamole extensions directory an
 │   ├── sway/config
 │   ├── wayvnc/config
 │   ├── systemd/sway-headless.service
-│   └── install-host.sh
+│   ├── install-host.sh
+│   └── patches/         # patched neatvnc for browser-responsive resize
 └── docs/
     ├── sway-wayvnc.md       # host desktop (Sway + wayvnc) setup & troubleshooting
     └── postgresql-arch.md   # general PostgreSQL setup for this server

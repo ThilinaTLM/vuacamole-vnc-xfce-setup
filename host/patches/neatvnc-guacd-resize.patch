@@ -1,0 +1,19 @@
+diff --git a/src/server.c b/src/server.c
+index 197e9b0..0ed2687 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -1666,7 +1666,14 @@ static void send_extended_desktop_size_rect(struct nvnc_client* client,
+ 	uint8_t number_of_screens = 1;
+ 	uint8_t buf[4] = { number_of_screens };
+ 
++	/* Patched for Guacamole/guacd compatibility: libvncclient discards any
++	 * ExtendedDesktopSize screen whose id == 0 (treated as invalid), so it
++	 * never initialises client->screen and guacd then refuses to send resize
++	 * requests ("Screen data has not been initialized"). Advertise a non-zero
++	 * id. guacd sends its own resize using screen id 1 (GUAC_VNC_SCREEN_ID),
++	 * and neatvnc's check_desktop_layout accepts that for our single output. */
+ 	struct rfb_screen screen = {
++		.id = htonl(1),
+ 		.width = htons(width),
+ 		.height = htons(height),
+ 	};

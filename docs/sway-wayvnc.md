@@ -110,6 +110,51 @@ The VNC password field **must be empty** — wayvnc runs with auth disabled (see
 
 ---
 
+## Browser-responsive resolution (dynamic resize)
+
+The desktop resizes to match the browser viewport (on connect and on window
+resize). This needs a **patched neatvnc** because of an incompatibility between
+stock wayvnc/neatvnc and Guacamole's VNC auto-resize (added in Guacamole 1.6.0):
+
+- neatvnc advertises its `ExtendedDesktopSize` screen with **id 0**.
+- guacd's libvncclient **discards any screen whose id is 0** (treats it as
+  invalid), so it never initialises `client->screen` and logs
+  `Screen data has not been initialized` / `Failed to send desktop size
+  message`, refusing every resize.
+- The fix advertises a **non-zero screen id (1)**, which also matches guacd's
+  `GUAC_VNC_SCREEN_ID = 1`, so the full resize round-trip works.
+
+The one-line change plus a build helper live in `host/patches/`:
+
+```bash
+host/patches/build-neatvnc.sh          # clone v0.9.5, patch, build, install (sudo)
+systemctl --user restart sway-headless # load the patched library
+```
+
+Verify it took effect:
+
+```bash
+ls -l /usr/lib/libneatvnc.so.0.0.0     # patched build is noticeably larger
+swaymsg -t get_outputs | grep -A2 HEADLESS-1   # size tracks the browser after a resize
+```
+
+### Maintenance
+
+This **overwrites the distro `libneatvnc`**, so a `pacman -Syu` that upgrades
+`neatvnc` will revert it (losing dynamic resize, not breaking anything). To keep
+it:
+
+- Re-run `host/patches/build-neatvnc.sh` after a neatvnc upgrade, **or**
+- Pin the package: add `IgnorePkg = neatvnc` to `/etc/pacman.conf` (note: it
+  then won't receive updates).
+- Ideally, report the id-0 issue upstream (neatvnc and/or guacamole-server) so
+  the patch becomes unnecessary.
+
+> ABI note: build the neatvnc version whose soname matches your installed wayvnc
+> (`libneatvnc.so.0`). If a future neatvnc bumps the soname, rebuild wayvnc too.
+
+---
+
 ## Security: bind address & firewall
 
 wayvnc runs **without VNC auth** (it has no legacy DES VNC password; its TLS/RSA-AES
