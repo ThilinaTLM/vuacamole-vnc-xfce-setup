@@ -1,0 +1,108 @@
+/* swaync — Catppuccin Mocha, flat, no animations.
+ * Installed to ~/.config/swaync/style.css by host/install-host.sh.
+ * transition-time is 0 in config.json; here we also force `transition: none`
+ * so nothing slides/fades over the VNC stream. */
+
+@define-color base    #1e1e2e;
+@define-color mantle  #181825;
+@define-color crust   #11111b;
+@define-color text    #cdd6f4;
+@define-color subtext #a6adc8;
+@define-color surface0 #313244;
+@define-color surface1 #45475a;
+@define-color mauve   #cba6f7;
+@define-color red     #f38ba8;
+
+* {
+    font-family: "IosevkaTerm Nerd Font", monospace;
+    font-size: 13px;
+    transition: none;
+    animation: none;
+    box-shadow: none;
+}
+
+/* floating popup notifications */
+.notification {
+    background-color: @mantle;
+    border: 1px solid @surface0;
+    border-radius: 10px;
+    margin: 6px 8px;
+    padding: 0;
+}
+
+.notification-content {
+    background: transparent;
+    padding: 10px;
+    color: @text;
+}
+
+.notification.critical {
+    border: 1px solid @red;
+}
+
+.summary { color: @text; font-weight: bold; }
+.body    { color: @subtext; }
+.time    { color: @subtext; }
+
+.close-button {
+    background: @surface0;
+    color: @text;
+    border-radius: 6px;
+    margin: 6px;
+    padding: 0 6px;
+}
+.close-button:hover { background: @red; color: @crust; }
+
+.notification-action,
+.notification-default-action {
+    background: transparent;
+}
+.notification-action:hover,
+.notification-default-action:hover {
+    background: @surface1;
+}
+
+/* control center panel */
+.control-center {
+    background-color: @base;
+    border: 1px solid @surface0;
+    border-radius: 12px;
+    padding: 10px;
+    color: @text;
+}
+
+.control-center .notification {
+    background-color: @mantle;
+}
+
+.widget-title {
+    color: @text;
+    font-size: 15px;
+    font-weight: bold;
+    margin: 4px 6px 10px 6px;
+}
+
+.widget-title > button {
+    color: @crust;
+    background-color: @mauve;
+    border-radius: 6px;
+    padding: 2px 12px;
+}
+.widget-title > button:hover { background-color: @red; }
+
+/* do-not-disturb toggle */
+.widget-dnd {
+    color: @text;
+    margin: 4px 6px 10px 6px;
+}
+.widget-dnd > switch {
+    background-color: @surface0;
+    border-radius: 12px;
+}
+.widget-dnd > switch:checked {
+    background-color: @mauve;
+}
+.widget-dnd > switch slider {
+    background-color: @text;
+    border-radius: 10px;
+}

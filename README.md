@@ -48,9 +48,25 @@ Install packages and enable linger (so the user systemd manager runs without an
 interactive login):
 
 ```bash
-sudo pacman -S --needed sway wayvnc foot fuzzel xorg-xwayland seatd
+sudo pacman -S --needed sway swaybg waybar wayvnc foot fuzzel \
+    xorg-xwayland seatd ttf-iosevkaterm-nerd papirus-icon-theme \
+    swaync nwg-drawer qt5ct qt6ct gnome-themes-extra \
+    xdg-desktop-portal xdg-desktop-portal-gtk
 sudo loginctl enable-linger "$USER"
 ```
+
+The desktop ships a flat **Catppuccin Mocha** theme: a compact KDE Plasma-style
+**bottom panel** (mauve **start button** → `nwg-drawer` app-grid launcher,
+workspace pager, then system tray + notification bell + clock on the right — no
+task list, since it's a tiling WM), mauve accent borders, a layered-mountains
+wallpaper, matching **GTK** (Adwaita-dark + Catppuccin) and **Qt** (qt5ct/qt6ct
+Fusion) app theming, and a styled **swaync** notification center. Everything is
+**flat and instant**: animations are disabled at the toolkit level, which also
+makes Firefox/Chromium report `prefers-reduced-motion: reduce` and go dark. It
+deliberately avoids SwayFX/blur/shadows/animations — the session is
+software-rendered and streamed over VNC, where animated pixels cost CPU and
+bandwidth. See
+[`docs/sway-wayvnc.md`](./docs/sway-wayvnc.md#appearance--theming-catppuccin-mocha).
 
 Install the repo-tracked host configs (Sway config, wayvnc config, user unit). The
 installer detects the Docker bridge gateway and binds wayvnc to it (e.g. `172.17.0.1:5901`),
@@ -154,6 +170,16 @@ Mount `guacamole-auth-totp-1.6.0.jar` into the Guacamole extensions directory an
 ├── host/                # host desktop configs (installed by install-host.sh)
 │   ├── sway/config
 │   ├── wayvnc/config
+│   ├── sway/apply-gsettings.sh # dark + reduced-motion via gsettings
+│   ├── waybar/          # config.jsonc + style.css (compact KDE-style panel)
+│   ├── foot/foot.ini    # terminal theme
+│   ├── fuzzel/fuzzel.ini # quick-run launcher theme
+│   ├── nwg-drawer/drawer.css   # start-menu app-grid theme
+│   ├── swaync/          # config.json + style.css (notification center)
+│   ├── gtk/             # gtk-3.0 + gtk-4.0 settings.ini + gtk.css
+│   ├── qt/              # qt5ct + qt6ct Fusion + Catppuccin palette
+│   ├── environment.d/desktop.conf # session env (QT theme, cursor, dark)
+│   ├── wallpapers/      # mocha.png + generate.py
 │   ├── systemd/sway-headless.service
 │   ├── install-host.sh
 │   └── patches/         # patched neatvnc for browser-responsive resize

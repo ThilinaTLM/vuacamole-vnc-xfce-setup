@@ -1,0 +1,66 @@
+/* nwg-drawer — Catppuccin Mocha app-grid "start menu".
+ * Installed to ~/.config/nwg-drawer/drawer.css by host/install-host.sh.
+ * Flat, no transitions. Launched resident (`nwg-drawer -r`) and shown by the
+ * Waybar start button / $mod+d. */
+
+* {
+    font-family: "IosevkaTerm Nerd Font", monospace;
+    transition: none;
+    animation: none;
+    box-shadow: none;
+}
+
+/* dim the desktop behind the grid */
+window {
+    background-color: rgba(17, 17, 27, 0.85);
+    color: #cdd6f4;
+}
+
+/* search box at the top */
+#searchbox {
+    background-color: #181825;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    margin: 16px 25% 8px 25%;
+    padding: 6px 12px;
+    font-size: 15px;
+}
+
+#category-button {
+    background-color: transparent;
+    color: #a6adc8;
+    border-radius: 6px;
+    margin: 2px 4px;
+    padding: 4px 10px;
+}
+#category-button:hover {
+    background-color: #313244;
+    color: #cdd6f4;
+}
+
+/* app tiles */
+button {
+    background-color: transparent;
+    color: #cdd6f4;
+    border: none;
+    border-radius: 10px;
+    padding: 10px;
+    margin: 4px;
+}
+button:hover {
+    background-color: #313244;
+}
+button:focus {
+    background-color: #45475a;
+    border: 1px solid #cba6f7;
+}
+
+#pinned-box {
+    margin-bottom: 8px;
+    border-bottom: 1px solid #313244;
+}
+
+label {
+    color: #cdd6f4;
+}

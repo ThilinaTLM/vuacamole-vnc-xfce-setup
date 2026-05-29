@@ -15,12 +15,26 @@ Everything is **on-demand** and runs as a **user** systemd service, so normal
 ## 1. Install packages (one-time, sudo)
 
 ```bash
-sudo pacman -S --needed sway wayvnc foot fuzzel xorg-xwayland seatd
+sudo pacman -S --needed sway swaybg waybar wayvnc foot fuzzel \
+    xorg-xwayland seatd ttf-iosevkaterm-nerd papirus-icon-theme \
+    swaync nwg-drawer qt5ct qt6ct gnome-themes-extra \
+    xdg-desktop-portal xdg-desktop-portal-gtk
 ```
 
 - `sway` — the Wayland compositor (uses the wlroots headless backend here).
+- `swaybg` — draws the desktop wallpaper.
+- `waybar` — bottom panel (Catppuccin Mocha; see *Appearance / theming* below).
 - `wayvnc` — VNC server for wlroots compositors.
-- `foot` — terminal; `fuzzel` — application launcher.
+- `foot` — terminal; `fuzzel` — quick-run launcher (`$mod+Shift+d`).
+- `nwg-drawer` — the start-menu **app grid** (start button / `$mod+d`).
+- `swaync` — notification daemon + control center (the panel's bell).
+- `ttf-iosevkaterm-nerd` — Nerd Font used by the bar/terminal for icon glyphs.
+- `papirus-icon-theme` — dark app icons (tray, GTK/Qt apps, app grid).
+- `qt5ct` / `qt6ct` — Qt 5/6 theming (Fusion + Catppuccin palette).
+- `gnome-themes-extra` — provides the `Adwaita-dark` GTK theme.
+- `xdg-desktop-portal` + `-gtk` — surface dark mode + reduced motion to
+  Firefox/Chromium (so they report `prefers-color-scheme: dark` and
+  `prefers-reduced-motion: reduce`).
 - `xorg-xwayland` — runs legacy X11 apps inside Sway (full `xorg-server` not needed).
 - `seatd` — only a fallback if the headless session complains about seat access.
 
@@ -58,8 +72,17 @@ Docker bridge gateway into the Sway `exec wayvnc` line, and runs
 ```text
 host/sway/config              → ~/.config/sway/config
 host/wayvnc/config            → ~/.config/wayvnc/config
+host/waybar/config.jsonc      → ~/.config/waybar/config.jsonc
+host/waybar/style.css         → ~/.config/waybar/style.css
+host/foot/foot.ini            → ~/.config/foot/foot.ini
+host/fuzzel/fuzzel.ini        → ~/.config/fuzzel/fuzzel.ini
+host/wallpapers/mocha.png     → ~/.config/wallpapers/mocha.png
 host/systemd/sway-headless.service → ~/.config/systemd/user/sway-headless.service
 ```
+
+The installer substitutes two placeholders into the Sway config: the detected
+Docker bridge gateway (`@DOCKER_BRIDGE_GATEWAY@`) and the absolute wallpaper
+path (`@WALLPAPER@`).
 
 Verify it landed:
 
@@ -92,6 +115,78 @@ If `swaymsg` can reach the running session, confirm the headless output:
 
 ```bash
 swaymsg -t get_outputs    # expect HEADLESS-1
+```
+
+---
+
+## Appearance / theming (Catppuccin Mocha)
+
+The desktop uses a flat **Catppuccin Mocha** theme with a KDE Plasma feel: a
+layered-mountains wallpaper and a **compact, edge-to-edge bottom panel**
+(**Waybar**, 28 px). The panel has a mauve **start button** that opens the
+`nwg-drawer` **app grid** and a workspace **pager** on the left; the center is
+intentionally empty (no task list — this is a tiling WM, so window switching is
+done with the keyboard and the pager, leaving maximum height for content); and
+the right holds the system **tray**, a **notification bell** (toggles the
+`swaync` control center), and a **clock**. Inner/outer gaps and a mauve accent
+on the focused window border finish the Sway side.
+
+App theming matches the desktop: **GTK 3/4** use `Adwaita-dark` with Catppuccin
+Mocha accent overrides (`host/gtk/`), and **Qt 5/6** route through
+`qt5ct`/`qt6ct` with the Fusion style and a Catppuccin Mocha palette
+(`host/qt/`), selected via `QT_QPA_PLATFORMTHEME=qt6ct` in
+`host/environment.d/desktop.conf`. Glyphs come from `IosevkaTerm Nerd Font` and
+icons from `Papirus-Dark`.
+
+**Everything is flat and instant — no animations.** This is enforced in layers
+(see *Why no … animations* below): GTK's `gtk-enable-animations=0` plus the
+gsettings `enable-animations false` (applied by `host/sway/apply-gsettings.sh`)
+turn off GTK-app motion *and* make Firefox/Chromium report
+`prefers-reduced-motion: reduce`; Qt uses the (near-static) Fusion style; and
+Waybar/swaync/nwg-drawer stylesheets all set `transition: none`. The same
+gsettings + `xdg-desktop-portal-gtk` push `color-scheme: prefer-dark`, so
+browsers and portal-aware apps go dark automatically.
+
+All of it lives in `host/` and is installed by `install-host.sh`. To tweak the
+look, edit the repo files and re-run the installer, then reload Sway:
+
+```bash
+./host/install-host.sh
+swaymsg reload          # or: systemctl --user restart sway-headless
+```
+
+### Why no SwayFX / blur / shadows / animations
+
+This is intentional, for two reasons specific to this setup:
+
+1. **Software rendering.** `sway-headless.service` forces `WLR_RENDERER=pixman`
+   (CPU, no GPU). SwayFX's effects (`fx_renderer`) require GLES2/OpenGL and will
+   not run on the pixman backend.
+2. **VNC stream.** The session is re-encoded and sent to the browser through
+   guacd/wayvnc. Animated pixels (blur, shadows, motion, live widgets like
+   `cava`, per-second repaints) cost CPU and bandwidth on every frame. A flat,
+   mostly-static look compresses well and a static wallpaper is free after the
+   first frame.
+
+For that reason the Waybar `clock` updates per minute, the panel carries only
+lightweight modules (start button, pager, tray, notification bell, clock), and
+nothing animates — toolkit animations are disabled globally (see above).
+
+### Regenerating the wallpaper
+
+The wallpaper is a committed PNG; `host/wallpapers/generate.py` reproduces it
+(stdlib only — no ImageMagick/PIL needed) and accepts an output path, size, and
+style (`mountains` default, or `gradient` for the lighter original):
+
+```bash
+python3 host/wallpapers/generate.py host/wallpapers/mocha.png 1920 1080 mountains
+```
+
+To skip the wallpaper entirely, set the fallback solid color in
+`host/sway/config`:
+
+```text
+output HEADLESS-1 bg #1e1e2e solid_color
 ```
 
 ---
