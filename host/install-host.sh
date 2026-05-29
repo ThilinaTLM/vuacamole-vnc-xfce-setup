@@ -20,7 +20,9 @@ unit_dir="$HOME/.config/systemd/user"
 packages=(
     xrdp xorgxrdp
     xfce4-session xfwm4 xfce4-panel xfdesktop xfce4-settings xfconf
+    xfce4-whiskermenu-plugin
     thunar xfce4-terminal xfce4-appfinder xfce4-notifyd garcon
+    flameshot
     breeze-icons noto-fonts
 )
 

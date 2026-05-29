@@ -20,7 +20,9 @@ over RDP (no shadows/transparency wasting bandwidth or adding latency).
 sudo pacman -S --needed \
   xrdp xorgxrdp \
   xfce4-session xfwm4 xfce4-panel xfdesktop xfce4-settings xfconf \
+  xfce4-whiskermenu-plugin \
   thunar xfce4-terminal xfce4-appfinder xfce4-notifyd garcon \
+  flameshot \
   breeze-icons noto-fonts
 ```
 
@@ -31,7 +33,10 @@ Why these packages:
   minimal practical XFCE desktop (session manager, window manager, panel, desktop/background, the
   settings/config backend, and the menu library).
 - `thunar` — file manager.
+- `flameshot` — screenshot tool with region selection and annotation (X11).
 - `xfce4-terminal` — terminal.
+- `xfce4-whiskermenu-plugin` — modern searchable applications menu for the panel (search box,
+  categories, favorites, recently used).
 - `xfce4-appfinder` — application launcher / run dialog (`Alt+F2`/`Alt+F3`).
 - `xfce4-notifyd` — desktop notifications.
 - `breeze-icons`, `noto-fonts` — sane icons/fonts.
