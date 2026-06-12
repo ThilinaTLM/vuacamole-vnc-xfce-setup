@@ -16,6 +16,8 @@ xfconf_dir="$HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
 gtk3_dir="$HOME/.config/gtk-3.0"
 gtk4_dir="$HOME/.config/gtk-4.0"
 unit_dir="$HOME/.config/systemd/user"
+polkit_power_rule_src="$src/polkit-1/rules.d/49-web-remote-desktop-no-power.rules"
+polkit_power_rule_dst="/etc/polkit-1/rules.d/49-web-remote-desktop-no-power.rules"
 
 packages=(
     xrdp xorgxrdp
@@ -101,9 +103,15 @@ echo "==> Removing old TigerVNC user configs from previous remote-desktop setups
 rm -rf "$HOME/.vnc"
 
 # Start from a clean XFCE config so stale settings from earlier setups do not
-# linger, then install the repo-tracked appearance.
+# linger, then install the repo-tracked appearance. Move the old directory out
+# of the way instead of rm -rf so this works even if xfconfd is running and
+# recreating files during the installer.
 echo "==> Resetting and installing XFCE config"
-rm -rf "$HOME/.config/xfce4"
+if [ -e "$HOME/.config/xfce4" ]; then
+    xfce_backup="$HOME/.config/xfce4.bak.$(date +%Y%m%d%H%M%S)"
+    mv "$HOME/.config/xfce4" "$xfce_backup"
+    echo "    Moved existing XFCE config to: $xfce_backup"
+fi
 mkdir -p "$xfconf_dir" "$gtk3_dir" "$gtk4_dir"
 
 echo "==> Installing XFCE xrdp session launcher"
@@ -123,6 +131,10 @@ sudo -v
 
 echo "==> Installing lightweight XFCE + xrdp/X11 host stack"
 sudo pacman -S --needed "${packages[@]}"
+
+echo "==> Installing polkit rule to block remote shutdown/reboot/sleep"
+sudo install -D -m 0644 "$polkit_power_rule_src" "$polkit_power_rule_dst"
+sudo systemctl try-reload-or-restart polkit.service 2>/dev/null || true
 
 echo "==> Configuring xrdp to bind only to ${gateway}:3389"
 ts="$(date +%Y%m%d%H%M%S)"
@@ -191,6 +203,7 @@ cat <<EOF
     $xfconf_dir/keyboard-shortcuts.xml
     $gtk3_dir/settings.ini
     $gtk4_dir/settings.ini
+    $polkit_power_rule_dst
     /etc/xrdp/xrdp.ini      (backup: /etc/xrdp/xrdp.ini.bak.${ts})
     /etc/xrdp/sesman.ini    (backup: /etc/xrdp/sesman.ini.bak.${ts})
 

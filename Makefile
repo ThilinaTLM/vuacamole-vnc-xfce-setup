@@ -32,9 +32,7 @@ up:
 ## down: Stop Docker stack, host xrdp services, and running XFCE sessions.
 .PHONY: down
 down:
-	$(COMPOSE) down
-	sudo systemctl stop xrdp xrdp-sesman
-	-sudo pkill -x xfce4-session
+	./scripts/down.sh
 
 ## restart: Restart the Docker stack only (host xrdp untouched).
 .PHONY: restart
