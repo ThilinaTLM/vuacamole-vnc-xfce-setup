@@ -1,0 +1,12 @@
+// Deny shutdown/reboot/sleep operations from non-local sessions such as xrdp/Guacamole.
+// This must sort before the default 50-default.rules so it can deny before auth prompts.
+polkit.addRule(function(action, subject) {
+    var isPowerAction =
+        action.id === "org.xfce.session.xfsm-shutdown-helper" ||
+        /^org\.freedesktop\.login1\.(power-off|reboot|halt|suspend|hibernate)(-|$)/.test(action.id) ||
+        /^org\.freedesktop\.login1\.set-reboot-/.test(action.id);
+
+    if (isPowerAction && subject.local !== true) {
+        return polkit.Result.NO;
+    }
+});

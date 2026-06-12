@@ -9,6 +9,16 @@ export GTK_THEME=Adwaita:dark
 unset WAYLAND_DISPLAY
 unset MOZ_ENABLE_WAYLAND
 
-# startxfce4 sets up its own D-Bus session, so do not wrap it in
-# dbus-run-session (that would launch a second, conflicting bus).
-exec startxfce4
+# This account runs with `loginctl enable-linger`, so a persistent systemd
+# user session already owns a D-Bus session bus at $XDG_RUNTIME_DIR/bus.
+# Every xrdp/X display would otherwise share that single bus, and XFCE
+# components that claim unique bus names (xfce4-panel -> org.xfce.Panel,
+# xfdesktop -> org.xfce.xfdesktop, xfsettingsd, ...) refuse to start when the
+# name is already held by a leftover session on another display. The result
+# is a black screen with only the xfwm4 cursor.
+#
+# dbus-run-session gives each X display its own private session bus, so panel
+# and xfdesktop always start, and the bus (and its children) tears down on
+# logout. startxfce4 reuses the bus dbus-run-session provides; it does not
+# spawn a second one.
+exec dbus-run-session -- startxfce4

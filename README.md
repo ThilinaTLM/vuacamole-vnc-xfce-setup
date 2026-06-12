@@ -7,6 +7,7 @@ A self-hosted, browser-accessible remote desktop for the Arch Linux dev server, 
 - **Gateway**: Apache Guacamole (HTML5 client, auth, optional TOTP/2FA) + guacd, in Docker.
 - **Proxy**: Caddy in Docker — automatic HTTPS for `desk.tlmtech.dev`.
 - **Database**: your existing system-level PostgreSQL (shared with dev work).
+- **Safety**: a host polkit rule blocks shutdown/reboot/sleep from remote xrdp/Guacamole sessions.
 
 The public boundary is still HTTPS/Caddy/Guacamole. Host RDP binds only to the Docker bridge
 address, so it is reachable by `guacd` but not exposed publicly.
@@ -42,7 +43,7 @@ docker compose version
 
 ### 1. Host desktop (XFCE + xrdp + X11)
 
-Run the host installer interactively. It installs repo-tracked XFCE user configs, prompts for sudo, installs the lightweight XFCE/xrdp package set, binds xrdp to the Docker bridge, enables `xrdp`/`xrdp-sesman`, and offers to remove old LXQt/Sway/TigerVNC packages.
+Run the host installer interactively. It installs repo-tracked XFCE user configs, prompts for sudo, installs the lightweight XFCE/xrdp package set, installs the remote-session power-operation block, binds xrdp to the Docker bridge, enables `xrdp`/`xrdp-sesman`, and offers to remove old LXQt/Sway/TigerVNC packages.
 
 ```bash
 ./host/install-host.sh
@@ -172,6 +173,7 @@ Mount `guacamole-auth-totp-1.6.0.jar` into the Guacamole extensions directory an
 ├── scripts/             # up.sh, down.sh, init-db.sh
 ├── host/
 │   ├── install-host.sh  # installs/configures XFCE + xrdp host setup
+│   ├── polkit-1/        # host polkit rule blocking remote shutdown/reboot/sleep
 │   ├── xfce/            # XFCE xinitrc + xfconf (theme, panel, session, hotkeys)
 │   ├── gtk-3.0/         # GTK dark preference
 │   └── gtk-4.0/         # GTK dark preference

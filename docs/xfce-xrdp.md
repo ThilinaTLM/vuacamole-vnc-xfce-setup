@@ -68,6 +68,8 @@ Run it interactively. It will prompt for sudo and then:
   - `keyboard-shortcuts.xml` — XFCE/xfwm4 shortcuts; audio/brightness keys omitted,
 - install dark GTK preference configs,
 - bind xrdp to the Docker bridge gateway on port `3389`,
+- install a polkit rule that denies shutdown/reboot/suspend/hibernate from non-local sessions such
+  as xrdp/Guacamole,
 - set the Arch xorgxrdp Xorg path in `/etc/xrdp/sesman.ini`,
 - enable/start `xrdp` and `xrdp-sesman`,
 - offer to remove old LXQt/Openbox/Sway/Wayland/TigerVNC packages.
@@ -107,6 +109,10 @@ written back to `~/.config/xfce4/xfconf/xfce-perchannel-xml/`. Re-running `./hos
   `host.docker.internal:3389`.
 - Guacamole login/permissions, optional TOTP, and the Linux account used for RDP form the access
   controls.
+- A host polkit rule at `/etc/polkit-1/rules.d/49-web-remote-desktop-no-power.rules` blocks
+  non-local sessions, including xrdp/Guacamole, from shutdown, reboot, halt, suspend, or hibernate
+  operations. Normal logout/disconnect still works. Users with `sudo` or root access can still power
+  off the machine intentionally.
 - Do not open port `3389` publicly unless you explicitly want direct RDP access.
 
 ## Guacamole connection
